@@ -1,0 +1,63 @@
+
+name: Build Muriel Neubrutalism APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract project ZIP
+        run: |
+          test -f riff-muriel-neubrutalism-android.zip
+          unzip -q riff-muriel-neubrutalism-android.zip -d source
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install dependencies
+        working-directory: source/riff-muriel-1.3.8
+        run: npm ci --no-audit --no-fund
+
+      - name: Build mobile bundle
+        working-directory: source/riff-muriel-1.3.8
+        run: node mobile/build.mjs
+
+      - name: Sync Android project
+        working-directory: source/riff-muriel-1.3.8
+        run: npx cap sync android
+
+      - name: Build APK
+        working-directory: source/riff-muriel-1.3.8/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Muriel-Neubrutalism-debug-apk
+          path: source/riff-muriel-1.3.8/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7
