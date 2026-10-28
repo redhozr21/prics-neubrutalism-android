@@ -22,8 +22,8 @@ jobs:
 
       - name: Extract project ZIP
         run: |
-          test -f riff-muriel-neubrutalism-android.zip
-          unzip -q riff-muriel-neubrutalism-android.zip -d source
+          test -f prics-neubrutalism-android.zip
+          unzip -q prics-neubrutalism-android.zip -d source
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
