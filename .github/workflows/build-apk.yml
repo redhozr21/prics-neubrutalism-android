@@ -1,18 +1,23 @@
-
-name: Build Muriel Neubrutalism APK
+name: Build Prics Play APK
 
 on:
   workflow_dispatch:
   push:
     branches: [main]
+    paths:
+      - 'prics-neubrutalism-android.zip'
+      - '.github/workflows/build-apk.yml'
 
 permissions:
-  contents: read
+  contents: write
+
+concurrency:
+  group: prics-play-android-build
+  cancel-in-progress: true
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
 
@@ -24,6 +29,10 @@ jobs:
         run: |
           test -f prics-neubrutalism-android.zip
           unzip -q prics-neubrutalism-android.zip -d source
+
+      - name: Read app version
+        id: app-version
+        run: echo "version=$(node -p 'require("./source/riff-muriel-1.3.8/package.json").version')" >> "$GITHUB_OUTPUT"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -52,12 +61,35 @@ jobs:
         working-directory: source/riff-muriel-1.3.8/android
         run: |
           chmod +x gradlew
+          export MURIEL_VERSION_CODE="$GITHUB_RUN_NUMBER"
+          export MURIEL_VERSION_NAME="$(node -p 'require("../package.json").version')"
           ./gradlew assembleDebug --no-daemon
 
-      - name: Upload APK
+      - name: Name APK for Prics Play
+        run: cp source/riff-muriel-1.3.8/android/app/build/outputs/apk/debug/app-debug.apk Prics-Play.apk
+
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Muriel-Neubrutalism-debug-apk
-          path: source/riff-muriel-1.3.8/android/app/build/outputs/apk/debug/app-debug.apk
+          name: Prics-Play-debug-apk
+          path: Prics-Play.apk
           if-no-files-found: error
           retention-days: 7
+
+      - name: Publish latest GitHub Release
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Do not let an older re-run replace the APK from the current main commit.
+          head="$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)"
+          if [ "$head" != "$GITHUB_SHA" ]; then
+            echo "main is now at ${head::7}; skipping release for ${GITHUB_SHA::7}"
+            exit 0
+          fi
+          gh release delete prics-play-latest --cleanup-tag --yes 2>/dev/null || true
+          gh release create prics-play-latest Prics-Play.apk \
+            --latest \
+            --target "$GITHUB_SHA" \
+            --title "Prics Play for Android (latest build)" \
+            --notes "Prics Play ${{ steps.app-version.outputs.version }} · Build ${GITHUB_RUN_NUMBER} from commit ${GITHUB_SHA::7}. Download Prics-Play.apk to install. This is a debug-signed APK for testing.<!-- prics-play-version: ${{ steps.app-version.outputs.version }} --><!-- prics-play-build: ${GITHUB_RUN_NUMBER} -->"
