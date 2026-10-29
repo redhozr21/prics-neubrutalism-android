@@ -5,14 +5,14 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Optional exact version to rebuild, e.g. 1.3.9. Leave blank to build the highest versioned ZIP.'
+        description: 'Optional exact version to rebuild, e.g. 2.3.0. Leave blank to build the highest versioned ZIP.'
         required: false
         type: string
+
   push:
     branches: [main]
     paths:
       - '*.zip'
-      - '.github/workflows/build-apk.yml'
 
 permissions:
   contents: write
@@ -55,7 +55,7 @@ jobs:
 
           if [ -n "$requested_version" ]; then
             if ! [[ "$requested_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-              echo "::error::Version must use semantic X.Y.Z format, e.g. 1.3.9"
+              echo "::error::Version must use semantic X.Y.Z format, e.g. 2.3.0"
               exit 1
             fi
 
@@ -126,7 +126,6 @@ jobs:
 
           echo "project_dir=$project_dir" >> "$GITHUB_OUTPUT"
           echo "version=$package_version" >> "$GITHUB_OUTPUT"
-
           echo "Validated version: $package_version"
 
       - name: Install dependencies
@@ -141,7 +140,7 @@ jobs:
         working-directory: ${{ steps.extract.outputs.project_dir }}
         run: npx cap sync android
 
-      # Preserve the existing debug signing key for test updates.
+      # Reuse the existing debug signing key for compatible test updates.
       - name: Cache debug signing key
         uses: actions/cache@v4
         with:
@@ -157,17 +156,27 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
 
-      - name: Prepare APK
+      - name: Prepare APK and SHA-256 checksum
         working-directory: ${{ steps.extract.outputs.project_dir }}
         run: |
+          set -euo pipefail
+
           cp android/app/build/outputs/apk/debug/app-debug.apk \
             "$GITHUB_WORKSPACE/Prics-Play.apk"
+
+          cd "$GITHUB_WORKSPACE"
+          sha256sum Prics-Play.apk > Prics-Play.apk.sha256
+
+          echo "APK and checksum prepared."
+          cat Prics-Play.apk.sha256
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: Prics-Play-debug-apk
-          path: Prics-Play.apk
+          path: |
+            Prics-Play.apk
+            Prics-Play.apk.sha256
           if-no-files-found: error
           retention-days: 7
 
@@ -180,7 +189,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Skip stale builds if main has moved on.
+          # Do not publish a build if main has moved on.
           head="$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)"
 
           if [ "$head" != "$GITHUB_SHA" ]; then
@@ -190,7 +199,7 @@ jobs:
 
           tag="v${APP_VERSION}"
 
-          # Find the highest version available in source ZIPs and releases.
+          # Find the highest version among source ZIPs and permanent releases.
           highest_version="$(
             {
               find . -maxdepth 1 -type f \
@@ -206,19 +215,49 @@ jobs:
             } | sort -V | tail -n 1
           )"
 
-          # Never delete or replace a permanent version release.
+          # Never delete or replace an existing permanent version release.
           if gh release view "$tag" >/dev/null 2>&1; then
-            if gh release view "$tag" --json assets \
-                --jq '.assets[].name' |
-                grep -Fxq 'Prics-Play.apk'; then
-              echo "Release $tag already contains the APK."
-              echo "Keeping the existing release unchanged."
-              exit 0
+            asset_names="$(gh release view "$tag" --json assets --jq '.assets[].name')"
+
+            if ! grep -Fxq 'Prics-Play.apk' <<< "$asset_names"; then
+              echo "::error::Release $tag exists but has no APK."
+              echo "Existing release was not changed."
+              exit 1
             fi
 
-            echo "::error::Release $tag exists but its APK is missing."
-            echo "The existing release was not deleted or overwritten."
-            exit 1
+            tmpdir="$(mktemp -d)"
+            trap 'rm -rf "$tmpdir"' EXIT
+
+            # Download the actual published APK, not the newly built APK.
+            gh release download "$tag" \
+              --pattern 'Prics-Play.apk' \
+              --dir "$tmpdir"
+
+            if grep -Fxq 'Prics-Play.apk.sha256' <<< "$asset_names"; then
+              gh release download "$tag" \
+                --pattern 'Prics-Play.apk.sha256' \
+                --dir "$tmpdir"
+
+              # Verify existing checksum without replacing any release asset.
+              (
+                cd "$tmpdir"
+                sha256sum -c Prics-Play.apk.sha256
+              )
+              echo "Existing release $tag and checksum are valid."
+            else
+              # Generate checksum for the APK already published in this release.
+              (
+                cd "$tmpdir"
+                sha256sum Prics-Play.apk > Prics-Play.apk.sha256
+              )
+
+              gh release upload "$tag" \
+                "$tmpdir/Prics-Play.apk.sha256"
+
+              echo "Added missing checksum to existing release $tag."
+            fi
+
+            exit 0
           fi
 
           if [ "$APP_VERSION" = "$highest_version" ]; then
@@ -229,9 +268,11 @@ jobs:
             echo "$tag is a historical version."
           fi
 
+          # Create a new permanent release with both APK and checksum.
           gh release create "$tag" \
             "$GITHUB_WORKSPACE/Prics-Play.apk" \
+            "$GITHUB_WORKSPACE/Prics-Play.apk.sha256" \
             "${latest_args[@]}" \
             --target "$GITHUB_SHA" \
             --title "Prics Play ${APP_VERSION}" \
-            --notes "Prics Play ${APP_VERSION}. Android debug APK built from commit ${GITHUB_SHA:0:7}. Download Prics-Play.apk to install. This is a debug-signed APK; updates require the same signing certificate.<!-- prics-play-version: ${APP_VERSION} --><!-- prics-play-build: ${GITHUB_RUN_NUMBER} -->"
+            --notes "Prics Play ${APP_VERSION}. Android debug APK built from commit ${GITHUB_SHA:0:7}. Download Prics-Play.apk to install. Verify it with Prics-Play.apk.sha256. This is a debug-signed APK; updates require the same signing certificate.<!-- prics-play-version: ${APP_VERSION} --><!-- prics-play-build: ${GITHUB_RUN_NUMBER} -->"
