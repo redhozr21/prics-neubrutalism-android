@@ -1,13 +1,12 @@
-
-name: Build Prics Play APK
+name: Build Prics Play Android
 
 on:
   workflow_dispatch:
   push:
     branches: [main]
     paths:
-      - 'Prics-Play-Finetune-Android.zip'
-      - 'prics-neubrutalism-android.zip'
+      - '*.zip'
+      - '.github/workflows/build-apk.yml'
 
 permissions:
   contents: write
@@ -37,50 +36,70 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      - name: Extract project ZIP
+      - name: Extract latest versioned project ZIP
+        id: extract
         shell: bash
         run: |
-          if [ -f Prics-Play-Finetune-Android.zip ]; then
+          mapfile -t versioned_archives < <(find . -maxdepth 1 -type f -name 'Prics-Play-[0-9]*-Android.zip' -printf '%f\n' | sort -V)
+          if [ "${#versioned_archives[@]}" -gt 0 ]; then
+            archive="${versioned_archives[$((${#versioned_archives[@]} - 1))]}"
+          elif [ -f Prics-Play-Finetune-Android.zip ]; then
             archive='Prics-Play-Finetune-Android.zip'
           elif [ -f prics-neubrutalism-android.zip ]; then
             archive='prics-neubrutalism-android.zip'
           else
-            echo 'Project ZIP not found in repository root.' >&2
+            echo 'No Prics Play source ZIP found in the repository root.' >&2
             exit 1
           fi
+          echo "Using source archive: $archive"
           unzip -q "$archive" -d source
-          test -f source/riff-muriel-1.3.8/package.json
+          package_file="$(find source -mindepth 2 -maxdepth 2 -type f -name package.json -print -quit)"
+          if [ -z "$package_file" ]; then
+            echo 'Could not locate the project package.json inside the ZIP.' >&2
+            exit 1
+          fi
+          project_dir="${package_file%/package.json}"
+          test "$(node -p "require('./$package_file').name")" = 'prics-play'
+          echo "project_dir=$project_dir" >> "$GITHUB_OUTPUT"
+          echo "Using project directory: $project_dir"
 
       - name: Read app version
         id: app-version
-        working-directory: .
-        run: |
-          echo "version=$(node -p 'require("./source/riff-muriel-1.3.8/package.json").version')" >> "$GITHUB_OUTPUT"
+        working-directory: ${{ steps.extract.outputs.project_dir }}
+        run: echo "version=$(node -p 'require("./package.json").version')" >> "$GITHUB_OUTPUT"
 
       - name: Install dependencies
-        working-directory: source/riff-muriel-1.3.8
+        working-directory: ${{ steps.extract.outputs.project_dir }}
         run: npm ci --no-audit --no-fund
 
       - name: Build mobile bundle
-        working-directory: source/riff-muriel-1.3.8
+        working-directory: ${{ steps.extract.outputs.project_dir }}
         run: node mobile/build.mjs
 
       - name: Sync Android project
-        working-directory: source/riff-muriel-1.3.8
+        working-directory: ${{ steps.extract.outputs.project_dir }}
         run: npx cap sync android
 
+      # Keep the debug signing certificate stable from this release onward so later APK updates
+      # can install over 1.3.9 without removing app data. This is still a debug/test signing key.
+      - name: Cache debug signing key for future updates
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: prics-play-debug-keystore-v1
+
       - name: Build APK
-        working-directory: source/riff-muriel-1.3.8/android
+        working-directory: ${{ steps.extract.outputs.project_dir }}/android
         env:
           MURIEL_VERSION_CODE: ${{ github.run_number }}
+          MURIEL_VERSION_NAME: ${{ steps.app-version.outputs.version }}
         run: |
           chmod +x gradlew
-          export MURIEL_VERSION_NAME="$(node -p 'require("../package.json").version')"
           ./gradlew assembleDebug --no-daemon
 
-      - name: Name APK for Prics Play
-        run: |
-          cp source/riff-muriel-1.3.8/android/app/build/outputs/apk/debug/app-debug.apk Prics-Play.apk
+      - name: Prepare APK
+        working-directory: ${{ steps.extract.outputs.project_dir }}
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk "$GITHUB_WORKSPACE/Prics-Play.apk"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -90,14 +109,14 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-      - name: Publish latest GitHub Release
+      - name: Publish latest APK for in-app updater
         if: github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           head="$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)"
           if [ "$head" != "$GITHUB_SHA" ]; then
-            echo "main has a newer commit; skipping release."
+            echo "main is now at ${head::7}; skipping stale release for ${GITHUB_SHA::7}"
             exit 0
           fi
           gh release delete prics-play-latest --cleanup-tag --yes 2>/dev/null || true
@@ -105,4 +124,4 @@ jobs:
             --latest \
             --target "$GITHUB_SHA" \
             --title "Prics Play for Android (latest build)" \
-            --notes "Prics Play ${{ steps.app-version.outputs.version }} · Build ${GITHUB_RUN_NUMBER}. Download Prics-Play.apk to install. Debug APK for testing."
+            --notes "Prics Play ${{ steps.app-version.outputs.version }} · Build ${GITHUB_RUN_NUMBER} from commit ${GITHUB_SHA::7}. Download Prics-Play.apk to install. This is a debug-signed APK for testing.<!-- prics-play-version: ${{ steps.app-version.outputs.version }} --><!-- prics-play-build: ${GITHUB_RUN_NUMBER} -->"
