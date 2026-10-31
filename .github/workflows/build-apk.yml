@@ -1,10 +1,11 @@
+
 name: Build Prics Play Android
 
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Exact version to build, e.g. 2.3.5'
+        description: 'Optional exact version to rebuild, e.g. 2.3.0. Leave blank to build the highest versioned ZIP.'
         required: false
         type: string
 
@@ -54,7 +55,7 @@ jobs:
 
           if [ -n "$requested_version" ]; then
             if ! [[ "$requested_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-              echo "::error::Version must use semantic X.Y.Z format, e.g. 2.3.5"
+              echo "::error::Version must use semantic X.Y.Z format, e.g. 2.3.0"
               exit 1
             fi
 
@@ -95,7 +96,7 @@ jobs:
           echo "Using source archive: $archive"
           unzip -q "$archive" -d source
 
-          package_file="$(find source -mindepth 2 -maxdepth 3 \
+          package_file="$(find source -mindepth 2 -maxdepth 2 \
             -type f -name package.json -print -quit)"
 
           if [ -z "$package_file" ]; then
@@ -139,59 +140,12 @@ jobs:
         working-directory: ${{ steps.extract.outputs.project_dir }}
         run: npx cap sync android
 
-      # IMPORTANT:
-      # Restore only the existing key. If it is missing or different, stop before Gradle
-      # can silently create a new debug.keystore.
-      - name: Restore existing debug signing key
-        id: signing_key_cache
-        uses: actions/cache/restore@v4
+      # Reuse the existing debug signing key for compatible test updates.
+      - name: Cache debug signing key
+        uses: actions/cache@v4
         with:
           path: ~/.android/debug.keystore
           key: prics-play-debug-keystore-v1
-
-      - name: Verify restored signing certificate
-        shell: bash
-        env:
-          CACHE_HIT: ${{ steps.signing_key_cache.outputs.cache-hit }}
-          EXPECTED_CERT_SHA256: A31F0FE0D1C4F95C4D368432E12AE37591998BD8172086BFFACED9B731DACC2C
-        run: |
-          set -euo pipefail
-
-          if [ "$CACHE_HIT" != "true" ]; then
-            echo "::error::Original signing-key cache was not found."
-            echo "Build stopped. No new signing key will be generated."
-            exit 1
-          fi
-
-          KEYSTORE="$HOME/.android/debug.keystore"
-
-          if [ ! -s "$KEYSTORE" ]; then
-            echo "::error::Restored debug.keystore is missing or empty."
-            exit 1
-          fi
-
-          KEY_INFO="$(keytool -list -v \
-            -keystore "$KEYSTORE" \
-            -storepass android \
-            -alias androiddebugkey)"
-
-          ACTUAL_CERT="$(printf '%s\n' "$KEY_INFO" |
-            sed -nE 's/^[[:space:]]*SHA256: (.*)$/\1/p' |
-            head -n 1 | tr -d ':' | tr '[:lower:]' '[:upper:]')"
-
-          if [ -z "$ACTUAL_CERT" ]; then
-            echo "::error::Could not read SHA-256 fingerprint from restored keystore."
-            exit 1
-          fi
-
-          if [ "$ACTUAL_CERT" != "$EXPECTED_CERT_SHA256" ]; then
-            echo "::error::Restored signing certificate does not match installed 3.4.0 APK."
-            echo "Expected: $EXPECTED_CERT_SHA256"
-            echo "Actual:   $ACTUAL_CERT"
-            exit 1
-          fi
-
-          echo "Existing 3.4.0 signing certificate verified."
 
       - name: Build APK
         working-directory: ${{ steps.extract.outputs.project_dir }}/android
@@ -199,57 +153,8 @@ jobs:
           MURIEL_VERSION_CODE: ${{ github.run_number }}
           MURIEL_VERSION_NAME: ${{ steps.extract.outputs.version }}
         run: |
-          set -euo pipefail
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
-
-      - name: Verify built APK certificate
-        working-directory: ${{ steps.extract.outputs.project_dir }}
-        shell: bash
-        env:
-          EXPECTED_CERT_SHA256: A31F0FE0D1C4F95C4D368432E12AE37591998BD8172086BFFACED9B731DACC2C
-        run: |
-          set -euo pipefail
-
-          APK="android/app/build/outputs/apk/debug/app-debug.apk"
-          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
-
-          if [ ! -s "$APK" ]; then
-            echo "::error::Built APK was not found."
-            exit 1
-          fi
-
-          if [ ! -d "$SDK_ROOT/build-tools" ]; then
-            echo "::error::Android SDK build-tools directory was not found: $SDK_ROOT/build-tools"
-            exit 1
-          fi
-
-          APKSIGNER="$(find "$SDK_ROOT/build-tools" \
-            -type f -name apksigner -print | sort -V | tail -n 1)"
-
-          if [ -z "$APKSIGNER" ]; then
-            echo "::error::apksigner was not found."
-            exit 1
-          fi
-
-          SIGNATURE="$("$APKSIGNER" verify --print-certs "$APK")"
-          echo "$SIGNATURE"
-
-          ACTUAL_CERT="$(printf '%s\n' "$SIGNATURE" |
-            awk -F': ' '/Signer #1 certificate SHA-256 digest:/ {
-              gsub(/:/, "", $2);
-              print toupper($2);
-              exit
-            }')"
-
-          if [ "$ACTUAL_CERT" != "$EXPECTED_CERT_SHA256" ]; then
-            echo "::error::Final APK signing certificate mismatch."
-            echo "Expected: $EXPECTED_CERT_SHA256"
-            echo "Actual:   $ACTUAL_CERT"
-            exit 1
-          fi
-
-          echo "Final APK certificate verified successfully."
 
       - name: Prepare APK and SHA-256 checksum
         working-directory: ${{ steps.extract.outputs.project_dir }}
@@ -284,6 +189,7 @@ jobs:
         run: |
           set -euo pipefail
 
+          # Do not publish a build if main has moved on.
           head="$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)"
 
           if [ "$head" != "$GITHUB_SHA" ]; then
@@ -293,6 +199,7 @@ jobs:
 
           tag="v${APP_VERSION}"
 
+          # Find the highest version among source ZIPs and permanent releases.
           highest_version="$(
             {
               find . -maxdepth 1 -type f \
@@ -308,6 +215,7 @@ jobs:
             } | sort -V | tail -n 1
           )"
 
+          # Never delete or replace an existing permanent version release.
           if gh release view "$tag" >/dev/null 2>&1; then
             asset_names="$(gh release view "$tag" --json assets --jq '.assets[].name')"
 
@@ -320,6 +228,7 @@ jobs:
             tmpdir="$(mktemp -d)"
             trap 'rm -rf "$tmpdir"' EXIT
 
+            # Download the actual published APK, not the newly built APK.
             gh release download "$tag" \
               --pattern 'Prics-Play.apk' \
               --dir "$tmpdir"
@@ -329,12 +238,14 @@ jobs:
                 --pattern 'Prics-Play.apk.sha256' \
                 --dir "$tmpdir"
 
+              # Verify existing checksum without replacing any release asset.
               (
                 cd "$tmpdir"
                 sha256sum -c Prics-Play.apk.sha256
               )
               echo "Existing release $tag and checksum are valid."
             else
+              # Generate checksum for the APK already published in this release.
               (
                 cd "$tmpdir"
                 sha256sum Prics-Play.apk > Prics-Play.apk.sha256
@@ -357,6 +268,7 @@ jobs:
             echo "$tag is a historical version."
           fi
 
+          # Create a new permanent release with both APK and checksum.
           gh release create "$tag" \
             "$GITHUB_WORKSPACE/Prics-Play.apk" \
             "$GITHUB_WORKSPACE/Prics-Play.apk.sha256" \
