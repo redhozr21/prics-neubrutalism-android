@@ -30,11 +30,11 @@
 ---
 
 ## Fitur Utama
-- ** Authentic Neubrutalism UI:** Tampilan bold dengan 2px black border, drop shadow 2px, dan warna khas Spotify-inspired.
-- ** Web & Mobile Responsive:** Mendukung tampilan desktop presisi untuk PC/Mac serta tampilan mobile elegan di smartphone.
-- ** Cache-First Offline Start:** Begitu dibuka langsung menampilkan data terakhir tanpa blank screen atau delay.
-- ** Lirik Romaji Latin Otomatis:** Tombol toggle `RO` untuk menerjemahkan lirik Kanji/Hangul ke huruf alfabet murni.
-- ** Download Album Lengkap:** Unduh seluruh isi album sekali klik dengan deteksi lewati lagu yang sudah ada.
-- ** My Wave & Mixes On-Demand:** Rekomendasi pintar YouTube Music & Last.fm yang hemat kuota dan baterai.
-- ** Blokir Lagu & Artis:** Bebas sensor konten yang tidak disukai langsung dari menu titik tiga.
-- ** Multi-Device Sync:** Sinkronisasi playlist dan track favorit antar perangkat secara instan.
+- **Authentic Neubrutalism UI:** Tampilan bold dengan 2px black border, drop shadow 2px, dan warna khas Spotify-inspired.
+- **Web & Mobile Responsive:** Mendukung tampilan desktop presisi untuk PC/Mac serta tampilan mobile elegan di smartphone.
+- **Cache-First Offline Start:** Begitu dibuka langsung menampilkan data terakhir tanpa blank screen atau delay.
+- **Lirik Romaji Latin Otomatis:** Tombol toggle `RO` untuk menerjemahkan lirik Kanji/Hangul ke huruf alfabet murni.
+- **Download Album Lengkap:** Unduh seluruh isi album sekali klik dengan deteksi lewati lagu yang sudah ada.
+- **My Wave & Mixes On-Demand:** Rekomendasi pintar YouTube Music & Last.fm yang hemat kuota dan baterai.
+- **Blokir Lagu & Artis:** Bebas sensor konten yang tidak disukai langsung dari menu titik tiga.
+- **Multi-Device Sync:** Sinkronisasi playlist dan track favorit antar perangkat secara instan.
