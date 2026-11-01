@@ -1,0 +1,92 @@
+name: Build Prics Play iOS (sideloadable IPA)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/build-ios.yml'
+
+concurrency:
+  group: prics-play-ios-build
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build iOS IPA (.ipa)
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Extract project archive
+        id: extract
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t archives < <(find . -maxdepth 1 -type f -name 'Prics-Play-[0-9]*-Android.zip' | sort -V)
+          archive="${archives[$((${#archives[@]} - 1))]}"
+          echo "Extracting $archive..."
+          unzip -q "$archive" -d source
+          pkg="$(find source -mindepth 2 -maxdepth 2 -type f -name package.json -print -quit)"
+          project_dir="${pkg%/package.json}"
+          ver="$(node -p "require('./$pkg').version")"
+          echo "project_dir=$project_dir" >> "$GITHUB_OUTPUT"
+          echo "version=$ver" >> "$GITHUB_OUTPUT"
+
+      - name: Install dependencies
+        working-directory: ${{ steps.extract.outputs.project_dir }}
+        run: npm ci --no-audit --no-fund
+
+      - name: Build mobile bundle
+        working-directory: ${{ steps.extract.outputs.project_dir }}
+        run: node mobile/build.mjs
+
+      - name: Sync Capacitor iOS
+        working-directory: ${{ steps.extract.outputs.project_dir }}
+        run: npx cap sync ios
+
+      - name: Build iOS Archive & Sideloadable IPA
+        working-directory: ${{ steps.extract.outputs.project_dir }}
+        run: |
+          set -euo pipefail
+          echo "Building iOS App with xcodebuild..."
+          xcodebuild clean build \
+            -project ios/App/App.xcodeproj \
+            -scheme App \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath ios/build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            AD_HOC_CODE_SIGNING_ALLOWED=YES
+
+          app_path="$(find ios/build/Build/Products/Release-iphoneos -name "*.app" -type d -maxdepth 1 | head -n 1)"
+          if [ -z "$app_path" ]; then
+            echo "::error::Could not find compiled .app bundle"
+            exit 1
+          fi
+
+          echo "Found compiled app at: $app_path"
+          mkdir -p Payload
+          cp -r "$app_path" Payload/
+          zip -qr "$GITHUB_WORKSPACE/Prics-Play.ipa" Payload
+          cd "$GITHUB_WORKSPACE"
+          shasum -a 256 Prics-Play.ipa | awk '{print $1}' > Prics-Play.ipa.sha256
+          echo "Generated Prics-Play.ipa successfully! Size: $(ls -lh Prics-Play.ipa | awk '{print $5}')"
+
+      - name: Upload iOS IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Prics-Play-iOS-ipa
+          path: |
+            Prics-Play.ipa
+            Prics-Play.ipa.sha256
+          if-no-files-found: error
+          retention-days: 14

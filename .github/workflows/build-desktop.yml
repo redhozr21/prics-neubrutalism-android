@@ -1,0 +1,185 @@
+name: Build Prics Play Desktop (Windows, macOS, Linux)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/build-desktop.yml'
+
+concurrency:
+  group: prics-play-desktop-build
+  cancel-in-progress: true
+
+jobs:
+  build-windows:
+    name: Build Windows (.exe)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Extract project archive
+        id: extract
+        shell: pwsh
+        run: |
+          $archives = Get-ChildItem -Path . -Filter "Prics-Play-[0-9]*-Android.zip" | Sort-Object Name
+          if ($archives.Count -eq 0) {
+            Write-Error "No Prics Play source ZIP found"
+            exit 1
+          }
+          $archive = $archives[-1].Name
+          Write-Host "Extracting $archive..."
+          Expand-Archive -Path $archive -DestinationPath "source" -Force
+          $pkg = Get-ChildItem -Path "source" -Recurse -Filter "package.json" | Select-Object -First 1
+          $projectDir = $pkg.DirectoryName
+          $ver = (Get-Content $pkg.FullName | ConvertFrom-Json).version
+          Write-Host "Project dir: $projectDir, Version: $ver"
+          "project_dir=$projectDir" >> $env:GITHUB_OUTPUT
+          "version=$ver" >> $env:GITHUB_OUTPUT
+
+      - name: Install dependencies
+        working-directory: ${{ steps.extract.outputs.project_dir }}
+        run: npm ci --no-audit --no-fund
+
+      - name: Build Windows Executable
+        working-directory: ${{ steps.extract.outputs.project_dir }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx electron-builder --win nsis --x64
+
+      - name: Collect Windows artifacts
+        shell: pwsh
+        working-directory: ${{ steps.extract.outputs.project_dir }}
+        run: |
+          New-Item -ItemType Directory -Path "$env:GITHUB_WORKSPACE/artifacts-win" -Force
+          Get-ChildItem -Path dist -Filter "*.exe" | ForEach-Object {
+            Copy-Item $_.FullName -Destination "$env:GITHUB_WORKSPACE/artifacts-win/$($_.Name)"
+            $hash = (Get-FileHash -Path $_.FullName -Algorithm SHA256).Hash.ToLower()
+            $hash | Out-File -FilePath "$env:GITHUB_WORKSPACE/artifacts-win/$($_.Name).sha256" -Encoding ascii -NoNewline
+          }
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Prics-Play-Windows-exe
+          path: artifacts-win/*
+          retention-days: 14
+
+  build-mac:
+    name: Build macOS (.dmg)
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Extract project archive
+        id: extract
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t archives < <(find . -maxdepth 1 -type f -name 'Prics-Play-[0-9]*-Android.zip' | sort -V)
+          archive="${archives[$((${#archives[@]} - 1))]}"
+          echo "Extracting $archive..."
+          unzip -q "$archive" -d source
+          pkg="$(find source -mindepth 2 -maxdepth 2 -type f -name package.json -print -quit)"
+          project_dir="${pkg%/package.json}"
+          ver="$(node -p "require('./$pkg').version")"
+          echo "project_dir=$project_dir" >> "$GITHUB_OUTPUT"
+          echo "version=$ver" >> "$GITHUB_OUTPUT"
+
+      - name: Install dependencies
+        working-directory: ${{ steps.extract.outputs.project_dir }}
+        run: npm ci --no-audit --no-fund
+
+      - name: Build macOS DMG
+        working-directory: ${{ steps.extract.outputs.project_dir }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+        run: npx electron-builder --mac dmg --universal
+
+      - name: Collect macOS artifacts
+        shell: bash
+        working-directory: ${{ steps.extract.outputs.project_dir }}
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/artifacts-mac"
+          for f in dist/*.dmg; do
+            [ -e "$f" ] || continue
+            cp "$f" "$GITHUB_WORKSPACE/artifacts-mac/"
+            name="$(basename "$f")"
+            shasum -a 256 "$f" | awk '{print $1}' > "$GITHUB_WORKSPACE/artifacts-mac/$name.sha256"
+          done
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Prics-Play-macOS-dmg
+          path: artifacts-mac/*
+          retention-days: 14
+
+  build-linux:
+    name: Build Linux (.AppImage)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Extract project archive
+        id: extract
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t archives < <(find . -maxdepth 1 -type f -name 'Prics-Play-[0-9]*-Android.zip' | sort -V)
+          archive="${archives[$((${#archives[@]} - 1))]}"
+          echo "Extracting $archive..."
+          unzip -q "$archive" -d source
+          pkg="$(find source -mindepth 2 -maxdepth 2 -type f -name package.json -print -quit)"
+          project_dir="${pkg%/package.json}"
+          ver="$(node -p "require('./$pkg').version")"
+          echo "project_dir=$project_dir" >> "$GITHUB_OUTPUT"
+          echo "version=$ver" >> "$GITHUB_OUTPUT"
+
+      - name: Install dependencies
+        working-directory: ${{ steps.extract.outputs.project_dir }}
+        run: npm ci --no-audit --no-fund
+
+      - name: Build Linux AppImage
+        working-directory: ${{ steps.extract.outputs.project_dir }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx electron-builder --linux AppImage
+
+      - name: Collect Linux artifacts
+        shell: bash
+        working-directory: ${{ steps.extract.outputs.project_dir }}
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/artifacts-linux"
+          for f in dist/*.AppImage; do
+            [ -e "$f" ] || continue
+            cp "$f" "$GITHUB_WORKSPACE/artifacts-linux/"
+            name="$(basename "$f")"
+            sha256sum "$f" | awk '{print $1}' > "$GITHUB_WORKSPACE/artifacts-linux/$name.sha256"
+          done
+
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Prics-Play-Linux-AppImage
+          path: artifacts-linux/*
+          retention-days: 14

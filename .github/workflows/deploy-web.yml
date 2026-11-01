@@ -1,0 +1,93 @@
+name: Deploy Prics Play Web (GitHub Pages PWA)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/deploy-web.yml'
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build PWA Web Assets
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Extract project archive
+        id: extract
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t archives < <(find . -maxdepth 1 -type f -name 'Prics-Play-[0-9]*-Android.zip' | sort -V)
+          archive="${archives[$((${#archives[@]} - 1))]}"
+          echo "Extracting $archive..."
+          unzip -q "$archive" -d source
+          pkg="$(find source -mindepth 2 -maxdepth 2 -type f -name package.json -print -quit)"
+          project_dir="${pkg%/package.json}"
+          echo "project_dir=$project_dir" >> "$GITHUB_OUTPUT"
+
+      - name: Install dependencies
+        working-directory: ${{ steps.extract.outputs.project_dir }}
+        run: npm ci --no-audit --no-fund
+
+      - name: Build mobile web bundle
+        working-directory: ${{ steps.extract.outputs.project_dir }}
+        run: |
+          node mobile/build.mjs
+          
+          # Inject PWA Web Manifest into www/
+          cat << 'EOF' > www/manifest.webmanifest
+          {
+            "name": "Prics Play",
+            "short_name": "Prics Play",
+            "description": "Lightweight Neubrutalism Music Player",
+            "start_url": "./index.html",
+            "display": "standalone",
+            "background_color": "#FFF8EF",
+            "theme_color": "#FF482C",
+            "icons": [
+              {
+                "src": "assets/icon.png",
+                "sizes": "512x512",
+                "type": "image/png",
+                "purpose": "any maskable"
+              }
+            ]
+          }
+          EOF
+
+          # Inject manifest link into www/index.html
+          sed -i 's|</head>|  <link rel="manifest" href="manifest.webmanifest">\n</head>|' www/index.html
+
+      - name: Upload GitHub Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ${{ steps.extract.outputs.project_dir }}/www
+
+  deploy:
+    name: Deploy to GitHub Pages
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
