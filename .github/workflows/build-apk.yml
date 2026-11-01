@@ -1,21 +1,20 @@
-
-name: Build Prics Play Android
+name: Build Prics Play Android (debug artifact)
 
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Optional exact version to rebuild, e.g. 2.3.0. Leave blank to build the highest versioned ZIP.'
+        description: 'Optional exact version to rebuild, e.g. 1.3.9. Leave blank to build the highest versioned ZIP.'
         required: false
         type: string
-
   push:
     branches: [main]
     paths:
       - '*.zip'
+      - '.github/workflows/build-apk.yml'
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: prics-play-android-build
@@ -55,32 +54,26 @@ jobs:
 
           if [ -n "$requested_version" ]; then
             if ! [[ "$requested_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-              echo "::error::Version must use semantic X.Y.Z format, e.g. 2.3.0"
+              echo "::error::Version must use semantic X.Y.Z format, e.g. 1.3.9"
               exit 1
             fi
-
             archive="Prics-Play-${requested_version}-Android.zip"
-
             if [ ! -f "$archive" ]; then
               echo "::error::Required archive '$archive' is not present in the repository root."
               exit 1
             fi
-
             archive_version="$requested_version"
           else
             mapfile -t versioned_archives < <(
-              find . -maxdepth 1 -type f \
-                -name 'Prics-Play-[0-9]*-Android.zip' \
-                -printf '%f\n' | sort -V
+              find . -maxdepth 1 -type f -name 'Prics-Play-[0-9]*-Android.zip' -printf '%f\n' | sort -V
             )
 
             if [ "${#versioned_archives[@]}" -gt 0 ]; then
               archive="${versioned_archives[$((${#versioned_archives[@]} - 1))]}"
-
               if [[ "$archive" =~ ^Prics-Play-([0-9]+\.[0-9]+\.[0-9]+)-Android\.zip$ ]]; then
                 archive_version="${BASH_REMATCH[1]}"
               else
-                echo "::error::Invalid versioned ZIP filename: $archive"
+                echo "::error::Selected archive does not use the expected version filename: $archive"
                 exit 1
               fi
             elif [ -f Prics-Play-Finetune-Android.zip ]; then
@@ -88,7 +81,7 @@ jobs:
             elif [ -f prics-neubrutalism-android.zip ]; then
               archive='prics-neubrutalism-android.zip'
             else
-              echo "::error::No Prics Play source ZIP found."
+              echo 'No Prics Play source ZIP found in the repository root.' >&2
               exit 1
             fi
           fi
@@ -96,11 +89,9 @@ jobs:
           echo "Using source archive: $archive"
           unzip -q "$archive" -d source
 
-          package_file="$(find source -mindepth 2 -maxdepth 2 \
-            -type f -name package.json -print -quit)"
-
+          package_file="$(find source -mindepth 2 -maxdepth 2 -type f -name package.json -print -quit)"
           if [ -z "$package_file" ]; then
-            echo "::error::Cannot locate package.json inside the ZIP."
+            echo 'Could not locate the project package.json inside the ZIP.' >&2
             exit 1
           fi
 
@@ -109,24 +100,24 @@ jobs:
           package_version="$(node -p "require('./$package_file').version")"
 
           if [ "$package_name" != 'prics-play' ]; then
-            echo "::error::Unexpected package name: $package_name"
+            echo "::error::Unexpected package name '$package_name' in $archive"
             exit 1
           fi
 
-          if [ -n "$archive_version" ] &&
-             [ "$package_version" != "$archive_version" ]; then
-            echo "::error::ZIP version does not match package.json."
+          if [ -n "$archive_version" ] && [ "$package_version" != "$archive_version" ]; then
+            echo "::error::ZIP filename version $archive_version does not match package.json version $package_version"
             exit 1
           fi
 
           if ! [[ "$package_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "::error::Invalid package version: $package_version"
+            echo "::error::package.json version must be semantic X.Y.Z; found '$package_version'"
             exit 1
           fi
 
           echo "project_dir=$project_dir" >> "$GITHUB_OUTPUT"
           echo "version=$package_version" >> "$GITHUB_OUTPUT"
-          echo "Validated version: $package_version"
+          echo "Using project directory: $project_dir"
+          echo "Validated app version: $package_version"
 
       - name: Install dependencies
         working-directory: ${{ steps.extract.outputs.project_dir }}
@@ -140,12 +131,18 @@ jobs:
         working-directory: ${{ steps.extract.outputs.project_dir }}
         run: npx cap sync android
 
-      # Reuse the existing debug signing key for compatible test updates.
-      - name: Cache debug signing key
-        uses: actions/cache@v4
-        with:
-          path: ~/.android/debug.keystore
-          key: prics-play-debug-keystore-v1
+      # Use permanent stable release signing key
+      - name: Setup release keystore
+        shell: bash
+        env:
+          MURIEL_KEYSTORE_BASE64: ${{ secrets.MURIEL_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$MURIEL_KEYSTORE_BASE64" ]; then
+            echo "Decoding custom release keystore from GitHub secrets..."
+            echo "$MURIEL_KEYSTORE_BASE64" | base64 -d > "${{ steps.extract.outputs.project_dir }}/android/keystores/prics-play-release.keystore"
+          else
+            echo "Using committed release keystore from android/keystores/prics-play-release.keystore"
+          fi
 
       - name: Build APK
         working-directory: ${{ steps.extract.outputs.project_dir }}/android
@@ -156,19 +153,12 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
 
-      - name: Prepare APK and SHA-256 checksum
+      - name: Prepare APK and checksum
         working-directory: ${{ steps.extract.outputs.project_dir }}
         run: |
-          set -euo pipefail
-
-          cp android/app/build/outputs/apk/debug/app-debug.apk \
-            "$GITHUB_WORKSPACE/Prics-Play.apk"
-
+          cp android/app/build/outputs/apk/debug/app-debug.apk "$GITHUB_WORKSPACE/Prics-Play.apk"
           cd "$GITHUB_WORKSPACE"
           sha256sum Prics-Play.apk > Prics-Play.apk.sha256
-
-          echo "APK and checksum prepared."
-          cat Prics-Play.apk.sha256
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -180,99 +170,10 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-      - name: Publish permanent versioned release
-        if: github.ref == 'refs/heads/main'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          APP_VERSION: ${{ steps.extract.outputs.version }}
-        shell: bash
+      - name: Explain debug artifact scope
         run: |
-          set -euo pipefail
-
-          # Do not publish a build if main has moved on.
-          head="$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)"
-
-          if [ "$head" != "$GITHUB_SHA" ]; then
-            echo "main has moved; skipping stale release."
-            exit 0
-          fi
-
-          tag="v${APP_VERSION}"
-
-          # Find the highest version among source ZIPs and permanent releases.
-          highest_version="$(
-            {
-              find . -maxdepth 1 -type f \
-                -name 'Prics-Play-[0-9]*-Android.zip' \
-                -printf '%f\n' |
-                sed -nE \
-                  's/^Prics-Play-([0-9]+\.[0-9]+\.[0-9]+)-Android\.zip$/\1/p'
-
-              gh api --paginate \
-                "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
-                --jq '.[].tag_name' |
-                sed -nE 's/^v([0-9]+\.[0-9]+\.[0-9]+)$/\1/p'
-            } | sort -V | tail -n 1
-          )"
-
-          # Never delete or replace an existing permanent version release.
-          if gh release view "$tag" >/dev/null 2>&1; then
-            asset_names="$(gh release view "$tag" --json assets --jq '.assets[].name')"
-
-            if ! grep -Fxq 'Prics-Play.apk' <<< "$asset_names"; then
-              echo "::error::Release $tag exists but has no APK."
-              echo "Existing release was not changed."
-              exit 1
-            fi
-
-            tmpdir="$(mktemp -d)"
-            trap 'rm -rf "$tmpdir"' EXIT
-
-            # Download the actual published APK, not the newly built APK.
-            gh release download "$tag" \
-              --pattern 'Prics-Play.apk' \
-              --dir "$tmpdir"
-
-            if grep -Fxq 'Prics-Play.apk.sha256' <<< "$asset_names"; then
-              gh release download "$tag" \
-                --pattern 'Prics-Play.apk.sha256' \
-                --dir "$tmpdir"
-
-              # Verify existing checksum without replacing any release asset.
-              (
-                cd "$tmpdir"
-                sha256sum -c Prics-Play.apk.sha256
-              )
-              echo "Existing release $tag and checksum are valid."
-            else
-              # Generate checksum for the APK already published in this release.
-              (
-                cd "$tmpdir"
-                sha256sum Prics-Play.apk > Prics-Play.apk.sha256
-              )
-
-              gh release upload "$tag" \
-                "$tmpdir/Prics-Play.apk.sha256"
-
-              echo "Added missing checksum to existing release $tag."
-            fi
-
-            exit 0
-          fi
-
-          if [ "$APP_VERSION" = "$highest_version" ]; then
-            latest_args=(--latest)
-            echo "$tag is the highest version."
-          else
-            latest_args=(--latest=false)
-            echo "$tag is a historical version."
-          fi
-
-          # Create a new permanent release with both APK and checksum.
-          gh release create "$tag" \
-            "$GITHUB_WORKSPACE/Prics-Play.apk" \
-            "$GITHUB_WORKSPACE/Prics-Play.apk.sha256" \
-            "${latest_args[@]}" \
-            --target "$GITHUB_SHA" \
-            --title "Prics Play ${APP_VERSION}" \
-            --notes "Prics Play ${APP_VERSION}. Android debug APK built from commit ${GITHUB_SHA:0:7}. Download Prics-Play.apk to install. Verify it with Prics-Play.apk.sha256. This is a debug-signed APK; updates require the same signing certificate.<!-- prics-play-version: ${APP_VERSION} --><!-- prics-play-build: ${GITHUB_RUN_NUMBER} -->"
+          {
+            echo "## Debug APK artifact"
+            echo "This workflow produces a debug-signed APK for testing and retains it as a workflow artifact."
+            echo "It does not publish or modify GitHub Releases. Official update releases are published only by android.yml using the configured release keystore and checksum."
+          } >> "$GITHUB_STEP_SUMMARY"
