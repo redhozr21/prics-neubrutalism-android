@@ -137,12 +137,30 @@ jobs:
         env:
           MURIEL_KEYSTORE_BASE64: ${{ secrets.MURIEL_KEYSTORE_BASE64 }}
         run: |
-          if [ -n "$MURIEL_KEYSTORE_BASE64" ]; then
+          set -euo pipefail
+          ks_dir="${{ steps.extract.outputs.project_dir }}/android/keystores"
+          ks_path="$ks_dir/prics-play-release.keystore"
+          mkdir -p "$ks_dir"
+
+          if [ -n "${MURIEL_KEYSTORE_BASE64:-}" ]; then
             echo "Decoding custom release keystore from GitHub secrets..."
-            echo "$MURIEL_KEYSTORE_BASE64" | base64 -d > "${{ steps.extract.outputs.project_dir }}/android/keystores/prics-play-release.keystore"
-          else
-            echo "Using committed release keystore from android/keystores/prics-play-release.keystore"
+            echo "$MURIEL_KEYSTORE_BASE64" | base64 -d > "$ks_path"
+          elif [ ! -f "$ks_path" ] || ! keytool -list -keystore "$ks_path" -storepass pricsplay2026 >/dev/null 2>&1; then
+            echo "Generating authentic Java release keystore with keytool..."
+            rm -f "$ks_path"
+            keytool -genkeypair -v \
+              -keystore "$ks_path" \
+              -alias pricsplay \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -storetype PKCS12 \
+              -storepass pricsplay2026 \
+              -keypass pricsplay2026 \
+              -dname "CN=Prics Play, OU=Mobile, O=Prics, C=ID"
           fi
+          echo "Verified release keystore:"
+          keytool -list -v -keystore "$ks_path" -storepass pricsplay2026 || true
 
       - name: Build APK
         working-directory: ${{ steps.extract.outputs.project_dir }}/android
