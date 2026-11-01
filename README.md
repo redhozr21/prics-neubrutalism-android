@@ -1,14 +1,13 @@
-# 🎵 Prics Play
+# âš¡ Prics Play
 
-> Lightweight, independent, multi-platform music player with authentic Neubrutalism design.
+> Lightweight, independent music player with authentic Neubrutalism design for Android & Web PWA.
 
 [![Android Build](https://img.shields.io/badge/Android-APK_Ready-brightgreen?logo=android)](https://github.com/redhozr21/prics-neubrutalism-android/releases)
-[![Windows](https://img.shields.io/badge/Windows-EXE_Installer-blue?logo=windows)](https://github.com/redhozr21/prics-neubrutalism-android/actions)
-[![iOS](https://img.shields.io/badge/iOS-IPA_Sideload-lightgrey?logo=apple)](https://github.com/redhozr21/prics-neubrutalism-android/actions)
+[![Web PWA](https://img.shields.io/badge/Web_PWA-Live_Online-FF482C?logo=googlechrome&logoColor=white)](https://redhozr21.github.io/prics-neubrutalism-android/)
 
 ---
 
-## 📸 Screenshots
+## ðŸ“± Screenshots
 
 <p align="center">
   <img src="screenshots/home.jpg" width="23%" alt="Home Screen" />
@@ -19,21 +18,23 @@
 
 ---
 
-## 📱 Download & Install
+## ðŸš€ Akses & Instalasi
 
-| Platform | Format | Cara Install | Tautan |
+| Platform | Format | Cara Pakai | Tautan |
 | :--- | :--- | :--- | :--- |
-| **Android** | `.apk` | Download & tap install langsung di HP Android | [Download APK](https://github.com/redhozr21/prics-neubrutalism-android/releases/latest) |
-| **Windows PC** | `.exe` | Jalankan installer Setup di Windows 10/11 (64-bit) | [GitHub Actions Artifacts](https://github.com/redhozr21/prics-neubrutalism-android/actions/workflows/build-desktop.yml) |
-| **iPhone / iPad** | `.ipa` | Sideload via AltStore, SideStore, Scarlet, atau TrollStore | [GitHub Actions Artifacts](https://github.com/redhozr21/prics-neubrutalism-android/actions/workflows/build-ios.yml) |
+| **Android** | `.apk` | Download & pasang langsung di HP Android | [Download APK](https://github.com/redhozr21/prics-neubrutalism-android/releases/latest) |
+| **Web PWA** | Web App | Buka langsung di browser (iOS Safari, PC / Mac, Android) | [Buka Prics Play Web](https://redhozr21.github.io/prics-neubrutalism-android/) |
+
+> **Catatan untuk pengguna iOS (iPhone / iPad):** Buka link Web PWA di Safari, lalu ketuk tombol Share (Bagikan) dan pilih **"Add to Home Screen"** untuk pengalaman layar penuh tanpa sideloading.
 
 ---
 
-## ✨ Fitur Utama
-- **🎨 Authentic Neubrutalism UI:** Tampilan bold dengan 2px black border, drop shadow 2px, dan warna khas Spotify-inspired.
-- **⚡ Cache-First Offline Start:** Begitu dibuka langsung menampilkan data terakhir tanpa blank screen atau delay.
-- **🇯🇵 Lirik Romaji Latin Otomatis:** Tombol toggle `RO` untuk menerjemahkan lirik Kanji/Hangul ke huruf alfabet murni.
-- **💾 Download Album Lengkap:** Unduh seluruh isi album sekali klik dengan deteksi lewati lagu yang sudah ada.
-- **🌊 My Wave & Mixes On-Demand:** Rekomendasi pintar YouTube Music & Last.fm yang hemat kuota dan baterai.
-- **🚫 Blokir Lagu & Artis:** Bebas sensor konten yang tidak disukai langsung dari menu titik tiga.
-- **🔄 Multi-Device Sync:** Sinkronisasi playlist dan track favorit antar perangkat secara instan.
+## ðŸŽ¨ Fitur Utama
+- **âš¡ Authentic Neubrutalism UI:** Tampilan bold dengan 2px black border, drop shadow 2px, dan warna khas Spotify-inspired.
+- **âš¡ Web & Mobile Responsive:** Mendukung tampilan desktop presisi untuk PC/Mac serta tampilan mobile elegan di smartphone.
+- **âš¡ Cache-First Offline Start:** Begitu dibuka langsung menampilkan data terakhir tanpa blank screen atau delay.
+- **âš¡ Lirik Romaji Latin Otomatis:** Tombol toggle `RO` untuk menerjemahkan lirik Kanji/Hangul ke huruf alfabet murni.
+- **âš¡ Download Album Lengkap:** Unduh seluruh isi album sekali klik dengan deteksi lewati lagu yang sudah ada.
+- **âš¡ My Wave & Mixes On-Demand:** Rekomendasi pintar YouTube Music & Last.fm yang hemat kuota dan baterai.
+- **âš¡ Blokir Lagu & Artis:** Bebas sensor konten yang tidak disukai langsung dari menu titik tiga.
+- **âš¡ Multi-Device Sync:** Sinkronisasi playlist dan track favorit antar perangkat secara instan.
