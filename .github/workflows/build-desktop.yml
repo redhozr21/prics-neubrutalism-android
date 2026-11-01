@@ -28,12 +28,12 @@ jobs:
         id: extract
         shell: pwsh
         run: |
-          $archives = Get-ChildItem -Path . -Filter "Prics-Play-[0-9]*-Android.zip" | Sort-Object Name
-          if ($archives.Count -eq 0) {
+          $archives = Get-ChildItem -Path . -Filter "Prics-Play-*-Android.zip" | Where-Object { $_.Name -match '^Prics-Play-\d' }
+          if (-not $archives) {
             Write-Error "No Prics Play source ZIP found"
             exit 1
           }
-          $archive = $archives[-1].Name
+          $archive = ($archives | Sort-Object Name)[-1].Name
           Write-Host "Extracting $archive..."
           Expand-Archive -Path $archive -DestinationPath "source" -Force
           $pkg = Get-ChildItem -Path "source" -Recurse -Filter "package.json" | Select-Object -First 1
@@ -49,9 +49,7 @@ jobs:
 
       - name: Build Windows Executable
         working-directory: ${{ steps.extract.outputs.project_dir }}
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx electron-builder --win nsis --x64
+        run: npx electron-builder --win nsis --x64 --publish never
 
       - name: Collect Windows artifacts
         shell: pwsh
@@ -88,8 +86,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mapfile -t archives < <(find . -maxdepth 1 -type f -name 'Prics-Play-[0-9]*-Android.zip' | sort -V)
-          archive="${archives[$((${#archives[@]} - 1))]}"
+          archive="$(ls -1 Prics-Play-*-Android.zip 2>/dev/null | tail -n 1)"
+          if [ -z "$archive" ]; then
+            echo "::error::No source ZIP found"
+            exit 1
+          fi
           echo "Extracting $archive..."
           unzip -q "$archive" -d source
           pkg="$(find source -mindepth 2 -maxdepth 2 -type f -name package.json -print -quit)"
@@ -105,9 +106,8 @@ jobs:
       - name: Build macOS DMG
         working-directory: ${{ steps.extract.outputs.project_dir }}
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: false
-        run: npx electron-builder --mac dmg --universal
+        run: npx electron-builder --mac dmg --universal --publish never
 
       - name: Collect macOS artifacts
         shell: bash
@@ -145,8 +145,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mapfile -t archives < <(find . -maxdepth 1 -type f -name 'Prics-Play-[0-9]*-Android.zip' | sort -V)
-          archive="${archives[$((${#archives[@]} - 1))]}"
+          archive="$(ls -1 Prics-Play-*-Android.zip 2>/dev/null | tail -n 1)"
+          if [ -z "$archive" ]; then
+            echo "::error::No source ZIP found"
+            exit 1
+          fi
           echo "Extracting $archive..."
           unzip -q "$archive" -d source
           pkg="$(find source -mindepth 2 -maxdepth 2 -type f -name package.json -print -quit)"
@@ -161,9 +164,7 @@ jobs:
 
       - name: Build Linux AppImage
         working-directory: ${{ steps.extract.outputs.project_dir }}
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx electron-builder --linux AppImage
+        run: npx electron-builder --linux AppImage --publish never
 
       - name: Collect Linux artifacts
         shell: bash

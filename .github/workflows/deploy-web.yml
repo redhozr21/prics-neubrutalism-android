@@ -34,8 +34,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mapfile -t archives < <(find . -maxdepth 1 -type f -name 'Prics-Play-[0-9]*-Android.zip' | sort -V)
-          archive="${archives[$((${#archives[@]} - 1))]}"
+          archive="$(ls -1 Prics-Play-*-Android.zip 2>/dev/null | tail -n 1)"
+          if [ -z "$archive" ]; then
+            echo "::error::No source ZIP found"
+            exit 1
+          fi
           echo "Extracting $archive..."
           unzip -q "$archive" -d source
           pkg="$(find source -mindepth 2 -maxdepth 2 -type f -name package.json -print -quit)"
