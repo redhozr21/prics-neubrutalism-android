@@ -1,0 +1,79 @@
+name: Build Prics Play Windows (.exe)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/build-windows.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: prics-play-windows-build
+  cancel-in-progress: true
+
+jobs:
+  build-windows:
+    name: Build Windows (.exe)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Extract project archive
+        id: extract
+        shell: pwsh
+        run: |
+          $archives = Get-ChildItem -Path . -Filter "Prics-Play-*-Android.zip" | Where-Object { $_.Name -match '^Prics-Play-\d' }
+          if (-not $archives) {
+            Write-Error "No Prics Play source ZIP found"
+            exit 1
+          }
+          $archive = ($archives | Sort-Object Name)[-1].Name
+          Write-Host "Extracting $archive..."
+          Expand-Archive -Path $archive -DestinationPath "source" -Force
+          $pkg = Get-ChildItem -Path "source" -Recurse -Filter "package.json" | Select-Object -First 1
+          $projectDir = $pkg.DirectoryName
+          $ver = (Get-Content $pkg.FullName | ConvertFrom-Json).version
+          Write-Host "Project dir: $projectDir, Version: $ver"
+          "project_dir=$projectDir" >> $env:GITHUB_OUTPUT
+          "version=$ver" >> $env:GITHUB_OUTPUT
+
+      - name: Install dependencies
+        working-directory: ${{ steps.extract.outputs.project_dir }}
+        run: npm ci --no-audit --no-fund
+
+      - name: Build Prics Play Neubrutalism bundle
+        working-directory: ${{ steps.extract.outputs.project_dir }}
+        run: node mobile/build.mjs
+
+      - name: Build Windows Executable
+        working-directory: ${{ steps.extract.outputs.project_dir }}
+        run: npx electron-builder --win nsis --x64 --publish never
+
+      - name: Publish Windows .exe to Release
+        shell: pwsh
+        working-directory: ${{ steps.extract.outputs.project_dir }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $exe = Get-ChildItem -Path dist -Filter "*.exe" | Select-Object -First 1
+          if ($exe) {
+            Write-Host "Uploading $($exe.Name) to Release v3.2.0..."
+            gh release upload v3.2.0 $exe.FullName --clobber
+            Write-Host "Uploaded $($exe.Name) successfully!"
+          }
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Prics-Play-Windows-exe
+          path: ${{ steps.extract.outputs.project_dir }}/dist/*.exe
+          retention-days: 14
