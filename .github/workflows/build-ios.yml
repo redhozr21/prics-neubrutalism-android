@@ -7,6 +7,9 @@ on:
     paths:
       - '.github/workflows/build-ios.yml'
 
+permissions:
+  contents: write
+
 concurrency:
   group: prics-play-ios-build
   cancel-in-progress: true
@@ -80,16 +83,21 @@ jobs:
           mkdir -p Payload
           cp -r "$app_path" Payload/
           zip -qr "$GITHUB_WORKSPACE/Prics-Play.ipa" Payload
-          cd "$GITHUB_WORKSPACE"
-          shasum -a 256 Prics-Play.ipa | awk '{print $1}' > Prics-Play.ipa.sha256
-          echo "Generated Prics-Play.ipa successfully! Size: $(ls -lh Prics-Play.ipa | awk '{print $5}')"
+          echo "Generated Prics-Play.ipa successfully! Size: $(ls -lh "$GITHUB_WORKSPACE/Prics-Play.ipa" | awk '{print $5}')"
+
+      - name: Publish iOS .ipa to Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Uploading Prics-Play.ipa to Release v3.2.0..."
+          gh release upload v3.2.0 "$GITHUB_WORKSPACE/Prics-Play.ipa" --clobber
+          echo "Uploaded Prics-Play.ipa to release successfully!"
 
       - name: Upload iOS IPA artifact
         uses: actions/upload-artifact@v4
         with:
           name: Prics-Play-iOS-ipa
-          path: |
-            Prics-Play.ipa
-            Prics-Play.ipa.sha256
+          path: Prics-Play.ipa
           if-no-files-found: error
           retention-days: 14

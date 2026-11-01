@@ -7,6 +7,9 @@ on:
     paths:
       - '.github/workflows/build-desktop.yml'
 
+permissions:
+  contents: write
+
 concurrency:
   group: prics-play-desktop-build
   cancel-in-progress: true
@@ -51,22 +54,24 @@ jobs:
         working-directory: ${{ steps.extract.outputs.project_dir }}
         run: npx electron-builder --win nsis --x64 --publish never
 
-      - name: Collect Windows artifacts
+      - name: Publish Windows .exe to Release
         shell: pwsh
         working-directory: ${{ steps.extract.outputs.project_dir }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          New-Item -ItemType Directory -Path "$env:GITHUB_WORKSPACE/artifacts-win" -Force
-          Get-ChildItem -Path dist -Filter "*.exe" | ForEach-Object {
-            Copy-Item $_.FullName -Destination "$env:GITHUB_WORKSPACE/artifacts-win/$($_.Name)"
-            $hash = (Get-FileHash -Path $_.FullName -Algorithm SHA256).Hash.ToLower()
-            $hash | Out-File -FilePath "$env:GITHUB_WORKSPACE/artifacts-win/$($_.Name).sha256" -Encoding ascii -NoNewline
+          $exe = Get-ChildItem -Path dist -Filter "*.exe" | Select-Object -First 1
+          if ($exe) {
+            Write-Host "Uploading $($exe.Name) to Release v3.2.0..."
+            gh release upload v3.2.0 $exe.FullName --clobber
+            Write-Host "Uploaded $($exe.Name) successfully!"
           }
 
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
         with:
           name: Prics-Play-Windows-exe
-          path: artifacts-win/*
+          path: ${{ steps.extract.outputs.project_dir }}/dist/*.exe
           retention-days: 14
 
   build-mac:
@@ -109,23 +114,24 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: false
         run: npx electron-builder --mac dmg --universal --publish never
 
-      - name: Collect macOS artifacts
+      - name: Publish macOS .dmg to Release
         shell: bash
         working-directory: ${{ steps.extract.outputs.project_dir }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          mkdir -p "$GITHUB_WORKSPACE/artifacts-mac"
-          for f in dist/*.dmg; do
-            [ -e "$f" ] || continue
-            cp "$f" "$GITHUB_WORKSPACE/artifacts-mac/"
-            name="$(basename "$f")"
-            shasum -a 256 "$f" | awk '{print $1}' > "$GITHUB_WORKSPACE/artifacts-mac/$name.sha256"
-          done
+          dmg="$(find dist -name "*.dmg" -type f | head -n 1)"
+          if [ -n "$dmg" ]; then
+            echo "Uploading $dmg to Release v3.2.0..."
+            gh release upload v3.2.0 "$dmg" --clobber
+            echo "Uploaded $dmg successfully!"
+          fi
 
       - name: Upload macOS artifacts
         uses: actions/upload-artifact@v4
         with:
           name: Prics-Play-macOS-dmg
-          path: artifacts-mac/*
+          path: ${{ steps.extract.outputs.project_dir }}/dist/*.dmg
           retention-days: 14
 
   build-linux:
@@ -166,21 +172,22 @@ jobs:
         working-directory: ${{ steps.extract.outputs.project_dir }}
         run: npx electron-builder --linux AppImage --publish never
 
-      - name: Collect Linux artifacts
+      - name: Publish Linux .AppImage to Release
         shell: bash
         working-directory: ${{ steps.extract.outputs.project_dir }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          mkdir -p "$GITHUB_WORKSPACE/artifacts-linux"
-          for f in dist/*.AppImage; do
-            [ -e "$f" ] || continue
-            cp "$f" "$GITHUB_WORKSPACE/artifacts-linux/"
-            name="$(basename "$f")"
-            sha256sum "$f" | awk '{print $1}' > "$GITHUB_WORKSPACE/artifacts-linux/$name.sha256"
-          done
+          appimage="$(find dist -name "*.AppImage" -type f | head -n 1)"
+          if [ -n "$appimage" ]; then
+            echo "Uploading $appimage to Release v3.2.0..."
+            gh release upload v3.2.0 "$appimage" --clobber
+            echo "Uploaded $appimage successfully!"
+          fi
 
       - name: Upload Linux artifacts
         uses: actions/upload-artifact@v4
         with:
           name: Prics-Play-Linux-AppImage
-          path: artifacts-linux/*
+          path: ${{ steps.extract.outputs.project_dir }}/dist/*.AppImage
           retention-days: 14
