@@ -87,7 +87,7 @@ jobs:
           fi
 
           echo "Using source archive: $archive"
-          unzip -q "$archive" -d source
+          7z x -y "$archive" -osource 2>/dev/null || unzip -q "$archive" -d source
 
           package_file="$(find source -mindepth 2 -maxdepth 2 -type f -name package.json -print -quit)"
           if [ -z "$package_file" ]; then

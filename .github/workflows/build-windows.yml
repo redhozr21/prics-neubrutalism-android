@@ -50,9 +50,24 @@ jobs:
         working-directory: ${{ steps.extract.outputs.project_dir }}
         run: npm ci --no-audit --no-fund
 
-      - name: Build Prics Play Neubrutalism bundle
+      - name: Stage bundled yt-dlp and ffmpeg for Windows
+        shell: pwsh
         working-directory: ${{ steps.extract.outputs.project_dir }}
-        run: node mobile/build.mjs
+        run: |
+          New-Item -ItemType Directory -Force -Path "bin"
+          Write-Host "Downloading yt-dlp.exe..."
+          Invoke-WebRequest -Uri "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe" -OutFile "bin/yt-dlp.exe"
+          Write-Host "Downloading ffmpeg..."
+          Invoke-WebRequest -Uri "https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip" -OutFile "ffmpeg.zip"
+          Expand-Archive -Path "ffmpeg.zip" -DestinationPath "ffmpeg_temp" -Force
+          $ffmpegExe = Get-ChildItem -Path "ffmpeg_temp" -Recurse -Filter "ffmpeg.exe" | Select-Object -First 1
+          $ffprobeExe = Get-ChildItem -Path "ffmpeg_temp" -Recurse -Filter "ffprobe.exe" | Select-Object -First 1
+          Copy-Item -Path $ffmpegExe.FullName -Destination "bin/ffmpeg.exe" -Force
+          Copy-Item -Path $ffprobeExe.FullName -Destination "bin/ffprobe.exe" -Force
+          Remove-Item -Recurse -Force "ffmpeg_temp"
+          Remove-Item -Force "ffmpeg.zip"
+          Write-Host "Binaries staged in bin/ successfully:"
+          Get-ChildItem -Path "bin"
 
       - name: Build Windows Executable
         working-directory: ${{ steps.extract.outputs.project_dir }}
