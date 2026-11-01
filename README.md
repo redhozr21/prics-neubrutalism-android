@@ -4,9 +4,7 @@
 
 [![Android Build](https://img.shields.io/badge/Android-APK_Ready-brightgreen?logo=android)](https://github.com/redhozr21/prics-neubrutalism-android/releases)
 [![Windows](https://img.shields.io/badge/Windows-EXE_Installer-blue?logo=windows)](https://github.com/redhozr21/prics-neubrutalism-android/actions)
-[![macOS](https://img.shields.io/badge/macOS-DMG_Universal-black?logo=apple)](https://github.com/redhozr21/prics-neubrutalism-android/actions)
 [![iOS](https://img.shields.io/badge/iOS-IPA_Sideload-lightgrey?logo=apple)](https://github.com/redhozr21/prics-neubrutalism-android/actions)
-[![Web PWA](https://img.shields.io/badge/Web-Live_PWA-orange?logo=googlechrome)](https://redhozr21.github.io/prics-neubrutalism-android/)
 
 ---
 
@@ -27,10 +25,7 @@
 | :--- | :--- | :--- | :--- |
 | **Android** | `.apk` | Download & tap install langsung di HP Android | [Download APK](https://github.com/redhozr21/prics-neubrutalism-android/releases/latest) |
 | **Windows PC** | `.exe` | Jalankan installer Setup di Windows 10/11 (64-bit) | [GitHub Actions Artifacts](https://github.com/redhozr21/prics-neubrutalism-android/actions/workflows/build-desktop.yml) |
-| **Mac (macOS)** | `.dmg` | Buka file `.dmg`, drag ke folder Applications (Universal) | [GitHub Actions Artifacts](https://github.com/redhozr21/prics-neubrutalism-android/actions/workflows/build-desktop.yml) |
-| **Linux** | `.AppImage` | `chmod +x` lalu klik dua kali untuk menjalankan | [GitHub Actions Artifacts](https://github.com/redhozr21/prics-neubrutalism-android/actions/workflows/build-desktop.yml) |
 | **iPhone / iPad** | `.ipa` | Sideload via AltStore, SideStore, Scarlet, atau TrollStore | [GitHub Actions Artifacts](https://github.com/redhozr21/prics-neubrutalism-android/actions/workflows/build-ios.yml) |
-| **Web Browser (PWA)** | Web App | Buka di Chrome/Safari, klik *"Add to Home Screen"* | [Buka Web Player](https://redhozr21.github.io/prics-neubrutalism-android/) |
 
 ---
 
