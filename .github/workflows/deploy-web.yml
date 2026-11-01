@@ -1,0 +1,66 @@
+name: Deploy Prics Play Web (GitHub Pages PWA)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'Prics-Play-*-Android.zip'
+      - '.github/workflows/deploy-web.yml'
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: 'pages'
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Extract project ZIP
+        id: extract
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="$(find . -maxdepth 1 -type f -name 'Prics-Play-[0-9]*-Android.zip' | sort -V | tail -n 1)"
+          echo "Extracting archive: $archive"
+          unzip -q "$archive" -d source
+          package_file="$(find source -mindepth 2 -maxdepth 2 -type f -name package.json -print -quit)"
+          project_dir="${package_file%/package.json}"
+          echo "project_dir=$project_dir" >> "$GITHUB_OUTPUT"
+          echo "Project directory: $project_dir"
+
+      - name: Install dependencies
+        working-directory: ${{ steps.extract.outputs.project_dir }}
+        run: npm ci --no-audit --no-fund
+
+      - name: Build web bundle
+        working-directory: ${{ steps.extract.outputs.project_dir }}
+        run: node mobile/build.mjs
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ${{ steps.extract.outputs.project_dir }}/www
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
