@@ -1,4 +1,4 @@
-# âš¡ Prics Play
+# Prics Play
 
 > Lightweight, independent music player with authentic Neubrutalism design for Android & Web PWA.
 
@@ -7,7 +7,7 @@
 
 ---
 
-## ðŸ“± Screenshots
+## Screenshots
 
 <p align="center">
   <img src="screenshots/home.jpg" width="23%" alt="Home Screen" />
@@ -18,7 +18,7 @@
 
 ---
 
-## ðŸš€ Akses & Instalasi
+## Akses & Instalasi
 
 | Platform | Format | Cara Pakai | Tautan |
 | :--- | :--- | :--- | :--- |
@@ -29,7 +29,7 @@
 
 ---
 
-## ðŸŽ¨ Fitur Utama
+## Fitur Utama
 - **âš¡ Authentic Neubrutalism UI:** Tampilan bold dengan 2px black border, drop shadow 2px, dan warna khas Spotify-inspired.
 - **âš¡ Web & Mobile Responsive:** Mendukung tampilan desktop presisi untuk PC/Mac serta tampilan mobile elegan di smartphone.
 - **âš¡ Cache-First Offline Start:** Begitu dibuka langsung menampilkan data terakhir tanpa blank screen atau delay.
