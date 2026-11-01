@@ -10,6 +10,17 @@
 
 ---
 
+## 📸 Screenshots
+
+<p align="center">
+  <img src="screenshots/home.jpg" width="23%" alt="Home Screen" />
+  <img src="screenshots/search.jpg" width="23%" alt="Search & Genres" />
+  <img src="screenshots/collection.jpg" width="23%" alt="Your Collection" />
+  <img src="screenshots/player.jpg" width="23%" alt="Now Playing" />
+</p>
+
+---
+
 ## 📱 Download & Install
 
 | Platform | Format | Cara Install | Tautan |
