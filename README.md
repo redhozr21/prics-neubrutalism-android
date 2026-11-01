@@ -1,4 +1,4 @@
-# 🎵 Prics Play (Neubrutalism Edition)
+# 🎵 Prics Play
 
 > Lightweight, independent, multi-platform music player with authentic Neubrutalism design.
 
