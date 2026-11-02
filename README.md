@@ -1,40 +1,11 @@
-# Prics Play
+# Prics Play 3.3.0 - Android APK & Web PWA
 
-> Lightweight, independent music player with authentic Neubrutalism design for Android & Web PWA.
+Prics Play 3.3.0 brings authentic Neubrutalism design to Android and Web browsers (PWA) with extreme battery efficiency and customizable audio streaming quality.
 
-[![Android Build](https://img.shields.io/badge/Android-APK_Ready-brightgreen?logo=android)](https://github.com/redhozr21/prics-neubrutalism-android/releases)
-[![Web PWA](https://img.shields.io/badge/Web_PWA-Live_Online-FF482C?logo=googlechrome&logoColor=white)](https://redhozr21.github.io/prics-neubrutalism-android/)
-
----
-
-## Screenshots
-
-<p align="center">
-  <img src="screenshots/home.jpg" width="23%" alt="Home Screen" />
-  <img src="screenshots/search.jpg" width="23%" alt="Search & Genres" />
-  <img src="screenshots/collection.jpg" width="23%" alt="Your Collection" />
-  <img src="screenshots/player.jpg" width="23%" alt="Now Playing" />
-</p>
-
----
-
-## Akses & Instalasi
-
-| Platform | Format | Cara Pakai | Tautan |
-| :--- | :--- | :--- | :--- |
-| **Android** | `.apk` | Download & pasang langsung di HP Android | [Download APK](https://github.com/redhozr21/prics-neubrutalism-android/releases/latest) |
-| **Web PWA** | Web App | Buka langsung di browser (iOS Safari, PC / Mac, Android) | [Buka Prics Play Web](https://redhozr21.github.io/prics-neubrutalism-android/) |
-
-> **Catatan untuk pengguna iOS (iPhone / iPad):** Buka link Web PWA di Safari, lalu ketuk tombol Share (Bagikan) dan pilih **"Add to Home Screen"** untuk pengalaman layar penuh tanpa sideloading.
-
----
-
-## Fitur Utama
-- **Authentic Neubrutalism UI:** Tampilan bold dengan 2px black border, drop shadow 2px, dan warna khas Spotify-inspired.
-- **Web & Mobile Responsive:** Mendukung tampilan desktop presisi untuk PC/Mac serta tampilan mobile elegan di smartphone.
-- **Cache-First Offline Start:** Begitu dibuka langsung menampilkan data terakhir tanpa blank screen atau delay.
-- **Lirik Romaji Latin Otomatis:** Tombol toggle `RO` untuk menerjemahkan lirik Kanji/Hangul ke huruf alfabet murni.
-- **Download Album Lengkap:** Unduh seluruh isi album sekali klik dengan deteksi lewati lagu yang sudah ada.
-- **My Wave & Mixes On-Demand:** Rekomendasi pintar YouTube Music & Last.fm yang hemat kuota dan baterai.
-- **Blokir Lagu & Artis:** Bebas sensor konten yang tidak disukai langsung dari menu titik tiga.
-- **Multi-Device Sync:** Sinkronisasi playlist dan track favorit antar perangkat secara instan.
+## Highlights
+- **Battery & Background Optimization:** Removed persistent WakeLock and disabled background DOM/lyrics computation during screen-off for all-day listening without battery drain.
+- **Audio Quality Selector:** Choose between Hemat Kuota (~50-64 kbps, ~20 MB/hr), Normal (~128 kbps, ~50 MB/hr), and High (~160 kbps, ~70 MB/hr) right from Settings.
+- **Authentic Neubrutalism UI:** Crisp black borders, solid drop shadows, and high contrast typography.
+- **Web PWA:** Full web playback experience on GitHub Pages for iOS Safari and PC/Desktop browsers.
+- **Android APK:** High-performance native audio engine with offline caching and background playback.
+- **Queue & Lyrics Reliability:** Separated current track and up next queue with synchronized timed lyrics.
