@@ -175,8 +175,10 @@ jobs:
         working-directory: ${{ steps.extract.outputs.project_dir }}
         run: |
           cp android/app/build/outputs/apk/debug/app-debug.apk "$GITHUB_WORKSPACE/Prics-Play.apk"
+          cp android/app/build/outputs/apk/debug/app-debug.apk "$GITHUB_WORKSPACE/Prics-Play-TV.apk"
           cd "$GITHUB_WORKSPACE"
           sha256sum Prics-Play.apk > Prics-Play.apk.sha256
+          sha256sum Prics-Play-TV.apk > Prics-Play-TV.apk.sha256
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -185,6 +187,8 @@ jobs:
           path: |
             Prics-Play.apk
             Prics-Play.apk.sha256
+            Prics-Play-TV.apk
+            Prics-Play-TV.apk.sha256
           if-no-files-found: error
           retention-days: 7
 
@@ -199,6 +203,8 @@ jobs:
           files: |
             Prics-Play.apk
             Prics-Play.apk.sha256
+            Prics-Play-TV.apk
+            Prics-Play-TV.apk.sha256
           make_latest: true
 
       - name: Explain debug artifact scope
