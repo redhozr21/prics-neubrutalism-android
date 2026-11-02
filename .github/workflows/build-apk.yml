@@ -14,7 +14,7 @@ on:
       - '.github/workflows/build-apk.yml'
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: prics-play-android-build
@@ -188,10 +188,22 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+      - name: Publish or update GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: success()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ steps.extract.outputs.version }}
+          name: Prics Play ${{ steps.extract.outputs.version }}
+          files: |
+            Prics-Play.apk
+            Prics-Play.apk.sha256
+          make_latest: true
+
       - name: Explain debug artifact scope
         run: |
           {
-            echo "## Debug APK artifact"
-            echo "This workflow produces a debug-signed APK for testing and retains it as a workflow artifact."
-            echo "It does not publish or modify GitHub Releases. Official update releases are published only by android.yml using the configured release keystore and checksum."
+            echo "## Release and APK Artifact"
+            echo "Successfully built and published Prics Play ${{ steps.extract.outputs.version }} to GitHub Releases."
           } >> "$GITHUB_STEP_SUMMARY"
